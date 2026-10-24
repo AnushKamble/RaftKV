@@ -96,43 +96,53 @@ func (c *simulatedCluster) close() {
 	_ = os.RemoveAll(c.tempDir)
 }
 
+func electLeader(t *testing.T, c *simulatedCluster) (*Raft, protocol.NodeID) {
+	for i := 0; i < 60; i++ {
+		c.net.AdvanceAndDeliver(20 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
+		for id, n := range c.nodes {
+			st, err := n.GetStatus(context.Background())
+			if err == nil && st.Role == protocol.RoleLeader {
+				return n, id
+			}
+		}
+	}
+	t.Fatalf("no leader elected after time advance. Trace:\n%s", c.trace.String())
+	return nil, ""
+}
+
 func TestElection_SingleLeaderElected(t *testing.T) {
 	nodeIDs := []protocol.NodeID{"node-1", "node-2", "node-3"}
 	c := newSimulatedCluster(t, 42, nodeIDs)
 	defer c.close()
 
-	// Advance virtual time in discrete steps and deliver network packets
-	for i := 0; i < 30; i++ {
-		c.net.AdvanceAndDeliver(20 * time.Millisecond)
-		time.Sleep(5 * time.Millisecond)
+	leader, leaderID := electLeader(t, c)
+	st, err := leader.GetStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	// Count elected leaders
+	if st.Role != protocol.RoleLeader {
+		t.Fatalf("expected leader role, got %s", st.Role)
+	}
+
+	// Verify only 1 leader exists across all nodes
 	leaders := 0
-	var leaderID protocol.NodeID
-	var leaderTerm protocol.Term
-
-	for id, n := range c.nodes {
-		st, err := n.GetStatus(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if st.Role == protocol.RoleLeader {
+	for _, n := range c.nodes {
+		s, _ := n.GetStatus(context.Background())
+		if s.Role == protocol.RoleLeader {
 			leaders++
-			leaderID = id
-			leaderTerm = st.Term
 		}
 	}
-
 	if leaders != 1 {
-		t.Fatalf("expected exactly 1 leader, got %d. Trace:\n%s", leaders, c.trace.String())
+		t.Fatalf("expected exactly 1 leader, got %d", leaders)
 	}
 
-	if leaderTerm < 1 {
-		t.Fatalf("expected leader term >= 1, got %d", leaderTerm)
+	if st.Term < 1 {
+		t.Fatalf("expected leader term >= 1, got %d", st.Term)
 	}
 
-	t.Logf("Leader successfully elected: %s at term %d", leaderID, leaderTerm)
+	t.Logf("Leader successfully elected: %s at term %d", leaderID, st.Term)
 }
 
 func TestElection_StaleTermRejected(t *testing.T) {
@@ -317,23 +327,7 @@ func TestElection_HigherTermForcesStepDown(t *testing.T) {
 	c := newSimulatedCluster(t, 101, nodeIDs)
 	defer c.close()
 
-	// Advance until a leader is elected
-	for i := 0; i < 30; i++ {
-		c.net.AdvanceAndDeliver(20 * time.Millisecond)
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	var leader *Raft
-	for _, n := range c.nodes {
-		st, _ := n.GetStatus(context.Background())
-		if st.Role == protocol.RoleLeader {
-			leader = n
-			break
-		}
-	}
-	if leader == nil {
-		t.Fatal("no leader elected")
-	}
+	leader, _ := electLeader(t, c)
 
 	leaderStatus, _ := leader.GetStatus(context.Background())
 	higherTerm := leaderStatus.Term + 5

@@ -2,6 +2,7 @@ package raft
 
 import (
 	"context"
+	"fmt"
 
 	raftkvv1 "raftkv/gen/raftkv/v1"
 	"raftkv/internal/protocol"
@@ -143,7 +144,7 @@ func (r *Raft) handleAppendEntries(args *raftkvv1.AppendEntriesArgs) *raftkvv1.A
 			if existingTerm != entryTerm {
 				// Invariant check: never truncate at or below commitIndex!
 				if entryIdx <= r.commitIndex {
-					panic("invariant violation: attempting to truncate committed log entry")
+					panic(fmt.Sprintf("invariant violation: attempting to truncate committed log entry: entryIdx=%d, commitIndex=%d, existingTerm=%d, newTerm=%d", entryIdx, r.commitIndex, existingTerm, entryTerm))
 				}
 				// Suffix conflict detected: truncate from entryIdx
 				if err := r.storage.TruncateSuffix(entryIdx); err != nil {
@@ -207,6 +208,7 @@ func (r *Raft) handleAppendEntriesReply(e appendEntriesReplyEvent) {
 	}
 
 	if e.success {
+		// Monotonic match index: ignore stale out-of-order replies
 		if e.matchIndex > r.matchIndex[e.from] {
 			r.matchIndex[e.from] = e.matchIndex
 			r.nextIndex[e.from] = e.matchIndex + 1
@@ -214,11 +216,35 @@ func (r *Raft) handleAppendEntriesReply(e appendEntriesReplyEvent) {
 		}
 	} else {
 		// Backtrack nextIndex using conflict hint
-		if e.conflictIndex > 0 {
+		if e.conflictTerm > 0 {
+			// Find last index on leader with conflictTerm
+			foundIndex := protocol.Index(0)
+			lastIdx, _, _ := r.storage.LastIndexAndTerm()
+			firstIdx, _ := r.storage.FirstIndex()
+			for idx := lastIdx; idx >= firstIdx; idx-- {
+				t, err := r.storage.Term(idx)
+				if err == nil && t == e.conflictTerm {
+					foundIndex = idx
+					break
+				}
+			}
+			if foundIndex > 0 {
+				r.nextIndex[e.from] = foundIndex + 1
+			} else if e.conflictIndex > 0 {
+				r.nextIndex[e.from] = e.conflictIndex
+			} else if r.nextIndex[e.from] > 1 {
+				r.nextIndex[e.from]--
+			}
+		} else if e.conflictIndex > 0 {
 			r.nextIndex[e.from] = e.conflictIndex
 		} else if r.nextIndex[e.from] > 1 {
 			r.nextIndex[e.from]--
 		}
+
+		if r.nextIndex[e.from] < 1 {
+			r.nextIndex[e.from] = 1
+		}
+
 		// Retry replication
 		r.sendAppendEntriesToPeer(protocol.NodeID(e.from))
 	}

@@ -72,6 +72,19 @@ type clientCommandEvent struct {
 
 func (clientCommandEvent) isEvent() {}
 
+type proposeEvent struct {
+	cmd     protocol.Command
+	replyCh chan proposeReply
+}
+
+func (proposeEvent) isEvent() {}
+
+type proposeReply struct {
+	index protocol.Index
+	term  protocol.Term
+	err   error
+}
+
 type statusRequestEvent struct {
 	replyCh chan Status
 }

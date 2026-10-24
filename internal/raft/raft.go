@@ -62,6 +62,11 @@ func NewRaft(cfg Config) (*Raft, error) {
 		return nil, fmt.Errorf("failed to load hard state: %w", err)
 	}
 
+	var idSeed int64
+	for _, b := range []byte(cfg.ID) {
+		idSeed = (idSeed * 31) + int64(b)
+	}
+
 	r := &Raft{
 		id:                 cfg.ID,
 		peers:              cfg.Peers,
@@ -81,7 +86,7 @@ func NewRaft(cfg Config) (*Raft, error) {
 		applyChan:          cfg.ApplyChan,
 		mailbox:            make(chan Event, 1000),
 		stopCh:             make(chan struct{}),
-		rnd:                rand.New(rand.NewSource(time.Now().UnixNano() + int64(len(cfg.ID)))),
+		rnd:                rand.New(rand.NewSource(time.Now().UnixNano() ^ (idSeed << 24))),
 	}
 
 	// Initialize commit and applied indices based on snapshot if available
@@ -165,6 +170,9 @@ func (r *Raft) handleEvent(ev Event) {
 	case clientCommandEvent:
 		r.handleClientCommand(e)
 
+	case proposeEvent:
+		r.handlePropose(e)
+
 	case statusRequestEvent:
 		select {
 		case e.replyCh <- r.getStatus():
@@ -212,6 +220,43 @@ func (r *Raft) becomeLeader() {
 
 	r.heartbeatTimer.Reset(r.heartbeatInterval)
 	r.broadcastAppendEntries()
+}
+
+func (r *Raft) handlePropose(e proposeEvent) {
+	if r.role != protocol.RoleLeader {
+		e.replyCh <- proposeReply{err: ErrNotLeader}
+		return
+	}
+
+	lastIdx, _, _ := r.storage.LastIndexAndTerm()
+	newIdx := lastIdx + 1
+	entry := protocol.LogEntry{
+		Index:   newIdx,
+		Term:    r.currentTerm,
+		Command: e.cmd,
+	}
+
+	if err := r.storage.AppendEntries([]protocol.LogEntry{entry}); err != nil {
+		e.replyCh <- proposeReply{err: err}
+		return
+	}
+
+	r.broadcastAppendEntries()
+	e.replyCh <- proposeReply{index: newIdx, term: r.currentTerm, err: nil}
+}
+
+// Propose appends a client command to the Raft log on the leader and triggers replication.
+func (r *Raft) Propose(ctx context.Context, cmd protocol.Command) (protocol.Index, protocol.Term, error) {
+	replyCh := make(chan proposeReply, 1)
+	r.PostEvent(proposeEvent{cmd: cmd, replyCh: replyCh})
+	select {
+	case <-ctx.Done():
+		return 0, 0, ctx.Err()
+	case <-r.stopCh:
+		return 0, 0, ErrStopped
+	case res := <-replyCh:
+		return res.index, res.term, res.err
+	}
 }
 
 // PostEvent enqueues an event into the actor's mailbox.
