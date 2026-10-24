@@ -163,3 +163,23 @@ func TestChecker_SearchBoundOverflowReturnsInconclusive(t *testing.T) {
 		t.Fatalf("expected INCONCLUSIVE on search bound overflow, got %s", res.Outcome)
 	}
 }
+
+func TestChecker_ExceedsBitmaskCapacityReturnsInconclusive(t *testing.T) {
+	c := NewChecker(1000)
+	var history []OperationRecord
+	for i := 1; i <= 65; i++ {
+		history = append(history, OperationRecord{
+			ID:         uint64(i),
+			Op:         protocol.OpPut,
+			Key:        "k",
+			Value:      "v",
+			InvokeTime: int64(i * 10),
+			ReturnTime: int64(i*10 + 5),
+		})
+	}
+
+	res := c.Check(history)
+	if res.Outcome != OutcomeInconclusive {
+		t.Fatalf("expected INCONCLUSIVE for history length 65, got %s", res.Outcome)
+	}
+}

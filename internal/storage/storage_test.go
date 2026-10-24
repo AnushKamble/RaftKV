@@ -281,3 +281,61 @@ func TestStorage_SnapshotCorruptionFailsClosed(t *testing.T) {
 		t.Fatal("expected error loading corrupted snapshot, got nil")
 	}
 }
+
+func TestStorage_CompactionPreservesHardState(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "raftkv-storage-hardstate-compact-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	s, err := OpenDiskStorage(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Save hard state term 5, votedFor "node-2"
+	if err := s.SaveHardState(5, "node-2"); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := []protocol.LogEntry{
+		{Index: 1, Term: 4, Command: protocol.Command{Op: protocol.OpPut, Key: "a", Value: "1"}},
+		{Index: 2, Term: 5, Command: protocol.Command{Op: protocol.OpPut, Key: "b", Value: "2"}},
+	}
+	if err := s.AppendEntries(entries); err != nil {
+		t.Fatal(err)
+	}
+
+	meta := protocol.SnapshotMeta{
+		LastIncludedIndex: 1,
+		LastIncludedTerm:  4,
+		FormatVersion:     1,
+	}
+	if err := s.SaveSnapshot(meta, []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.CompactLog(1, 4); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopen after compaction: term 5 and votedFor "node-2" MUST be preserved!
+	s2, err := OpenDiskStorage(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+
+	term, votedFor, err := s2.LoadHardState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if term != 5 || votedFor != "node-2" {
+		t.Fatalf("expected term 5, votedFor 'node-2' after compaction & restart, got term %d, votedFor %q", term, votedFor)
+	}
+}

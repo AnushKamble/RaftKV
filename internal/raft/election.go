@@ -9,6 +9,26 @@ import (
 
 func (r *Raft) handleElectionTimeout() {
 	if r.role == protocol.RoleLeader {
+		// Quorum check (§6.2, CheckQuorum):
+		// Verify leader has received responses from a majority of nodes (including itself) within election timeout.
+		totalNodes := len(r.peers) + 1
+		majority := (totalNodes / 2) + 1
+		contacted := 1 // leader itself
+		for _, p := range r.peers {
+			if r.ackedPeers[string(p)] {
+				contacted++
+			}
+		}
+
+		if contacted < majority {
+			// Lost quorum: step down immediately
+			r.becomeFollower(r.currentTerm, "")
+			return
+		}
+
+		// Quorum intact: reset peer acks and reset election timer for next check
+		r.ackedPeers = make(map[string]bool)
+		r.resetElectionTimeout()
 		return
 	}
 
@@ -16,7 +36,10 @@ func (r *Raft) handleElectionTimeout() {
 	r.role = protocol.RoleCandidate
 	r.votedFor = string(r.id)
 	r.leaderID = ""
-	_ = r.storage.SaveHardState(r.currentTerm, r.votedFor)
+	if err := r.storage.SaveHardState(r.currentTerm, r.votedFor); err != nil {
+		// Disk error: cannot persist candidate state, abort campaign
+		return
+	}
 
 	r.resetElectionTimeout()
 	r.votesReceived = map[string]bool{string(r.id): true}
@@ -87,7 +110,12 @@ func (r *Raft) handleRequestVote(args *raftkvv1.RequestVoteArgs) *raftkvv1.Reque
 
 	if canVote {
 		r.votedFor = args.CandidateId
-		_ = r.storage.SaveHardState(r.currentTerm, r.votedFor)
+		if err := r.storage.SaveHardState(r.currentTerm, r.votedFor); err != nil {
+			return &raftkvv1.RequestVoteReply{
+				Term:        uint64(r.currentTerm),
+				VoteGranted: false,
+			}
+		}
 		r.resetElectionTimeout() // Reset timer on granting vote
 		return &raftkvv1.RequestVoteReply{
 			Term:        uint64(r.currentTerm),

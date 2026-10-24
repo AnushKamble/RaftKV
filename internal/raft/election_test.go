@@ -355,3 +355,37 @@ func TestElection_HigherTermForcesStepDown(t *testing.T) {
 		t.Fatalf("expected term updated to %d, got %d", higherTerm, newStatus.Term)
 	}
 }
+
+func TestElection_LeaderStepsDownOnQuorumLoss(t *testing.T) {
+	nodeIDs := []protocol.NodeID{"node-1", "node-2", "node-3"}
+	c := newSimulatedCluster(t, 202, nodeIDs)
+	defer c.close()
+
+	leader, leaderID := electLeader(t, c)
+
+	// Partition the leader off from all peers:
+	// leader in partition 1, all other peers in partition 2
+	partitions := make(map[string]int)
+	partitions[string(leaderID)] = 1
+	for _, id := range nodeIDs {
+		if id != leaderID {
+			partitions[string(id)] = 2
+		}
+	}
+	c.net.Partition(partitions)
+
+	// Advance clock past leader's election timeout (CheckQuorum window: needs up to 2 intervals to expire previous acks and detect no new acks)
+	for i := 0; i < 50; i++ {
+		c.net.AdvanceAndDeliver(20 * time.Millisecond)
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	// Verify that the isolated leader stepped down (no longer Leader)
+	st, err := leader.GetStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Role == protocol.RoleLeader {
+		t.Fatalf("expected partitioned leader %s to step down from Leader on quorum loss, but still Leader", leaderID)
+	}
+}

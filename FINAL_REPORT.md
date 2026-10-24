@@ -32,6 +32,7 @@ Every safety invariant defined in the Raft consensus paper and project technical
 | **Election Safety** | At most one leader can be elected in a given term | `TestElection_SingleLeaderElected`<br/>`TestElection_SplitVoteResolution` | **PASS** |
 | **Candidate Freshness** | Candidate log compared by `lastLogTerm` first, then `lastLogIndex` | `TestElection_CandidateLogFreshness` | **PASS** |
 | **Durable Vote State** | Hard state (`currentTerm`, `votedFor`) fsync'd before `RequestVoteReply` | `TestElection_VotePersistenceBeforeReply` | **PASS** |
+| **Quorum Step-Down** | Leader steps down if isolated from majority quorum | `TestElection_LeaderStepsDownOnQuorumLoss` | **PASS** |
 | **Leader Append-Only** | Leader never overwrites or truncates its own log entries | `TestRaft_Submit_LeaderAppendOnly` | **PASS** |
 | **Log Matching** | Matching (index, term) implies identical preceding log prefix | `TestReplication_BasicAppendEntries`<br/>`TestReplication_ConflictRepairAfterPartition` | **PASS** |
 | **Figure 8 Safety** | Leader only commits entries from its current term by majority | `TestReplication_Figure8CurrentTermCommitConstraint` | **PASS** |
@@ -44,7 +45,9 @@ Every safety invariant defined in the Raft consensus paper and project technical
 | **Linearizable Reads** | `Get` commands pass through Raft log consensus to prevent stale reads | `TestKV_LoggedGet` | **PASS** |
 | **Failover Continuity** | Leader kill allows surviving majority to elect new leader and proceed | `TestCrash_LeaderKillAndFailover` | **PASS** |
 | **Crash Recovery** | 100% of committed state restored after abrupt cluster-wide shutdown | `TestCrash_FullClusterRestart` | **PASS** |
+| **HardState Compaction** | Compaction preserves hard state (`currentTerm`, `votedFor`) across restart | `TestStorage_CompactionPreservesHardState` | **PASS** |
 | **Snapshot Catchup** | Lagging follower restores state via `InstallSnapshot` and resumes log replication | `TestIntegration_InstallSnapshotLaggingFollower` | **PASS** |
+| **Corrupt Snapshot Reject** | Reject corrupted InstallSnapshot bytes without advancing commit/applied | `TestReplication_CorruptedInstallSnapshotRejected` | **PASS** |
 | **Linearizability** | Real concurrent client operations validated against sequential spec | `TestCluster_ConcurrentLinearizability` | **PASS** |
 | **Deterministic Chaos** | Multi-round loss, delay, reorder, partitions across seeds (101, 202, 303, 404, 505) | `TestChaos_DeterministicFaultCampaign` | **PASS** |
 
@@ -63,7 +66,8 @@ Evaluated using the project benchmark harness (`cmd/raftkv-bench`) on Windows 11
 | **p50 Latency** | < 0.01 ms | **5.15 ms** |
 | **p95 Latency** | < 0.01 ms | **6.31 ms** |
 | **p99 Latency** | < 0.01 ms | **7.40 ms** |
-| **Max Latency** | 0.08 ms | 11.75 ms |
+| **Min Latency** | < 0.01 ms | 3.25 ms |
+| **Max Latency** | 1.09 ms | 7.40 ms |
 | **Durability Policy** | In-memory only (no disk IO) | Synchronous `fsync()` on every committed WAL record frame |
 
 ### Bottleneck Identification & Analysis

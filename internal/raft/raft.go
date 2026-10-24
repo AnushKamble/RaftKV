@@ -33,6 +33,7 @@ type Raft struct {
 	role          protocol.Role
 	leaderID      protocol.NodeID
 	votesReceived map[string]bool
+	ackedPeers    map[string]bool
 
 	// Replication progress tracking (Leaders only)
 	nextIndex  map[string]protocol.Index
@@ -83,6 +84,7 @@ func NewRaft(cfg Config) (*Raft, error) {
 		role:               protocol.RoleFollower,
 		leaderID:           "",
 		votesReceived:      make(map[string]bool),
+		ackedPeers:         make(map[string]bool),
 		nextIndex:          make(map[string]protocol.Index),
 		matchIndex:         make(map[string]protocol.Index),
 		applyChan:          cfg.ApplyChan,
@@ -218,7 +220,8 @@ func (r *Raft) becomeFollower(term protocol.Term, leader protocol.NodeID) {
 func (r *Raft) becomeLeader() {
 	r.role = protocol.RoleLeader
 	r.leaderID = r.id
-	r.electionTimer.Stop()
+	r.ackedPeers = make(map[string]bool)
+	r.resetElectionTimeout() // Keep running for CheckQuorum (§6.2)
 
 	lastIdx, _, _ := r.storage.LastIndexAndTerm()
 	for _, p := range r.peers {

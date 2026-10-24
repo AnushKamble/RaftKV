@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	raftkvv1 "raftkv/gen/raftkv/v1"
 	"raftkv/internal/protocol"
+	"raftkv/internal/statemachine"
 )
 
 func TestReplication_FollowerCatchUp(t *testing.T) {
@@ -309,5 +311,39 @@ func TestReplication_MinorityCannotCommit(t *testing.T) {
 	majStatus, _ := majorityLeader.GetStatus(context.Background())
 	if majStatus.CommitIndex < majIdx {
 		t.Fatalf("majority partition failed to commit: commitIndex=%d, want %d", majStatus.CommitIndex, majIdx)
+	}
+}
+
+func TestReplication_CorruptedInstallSnapshotRejected(t *testing.T) {
+	nodeIDs := []protocol.NodeID{"node-1"}
+	c := newSimulatedCluster(t, 701, nodeIDs)
+	defer c.close()
+
+	node := c.nodes["node-1"]
+	node.stateMachine = statemachine.NewKVStateMachine()
+	node.currentTerm = 2
+	node.commitIndex = 5
+	node.lastApplied = 5
+
+	// Send an InstallSnapshot with corrupted/invalid data payload
+	corruptedData := []byte("this is definitely not valid json snapshot data")
+	reply := node.handleInstallSnapshot(&raftkvv1.InstallSnapshotArgs{
+		Term:              2,
+		LeaderId:          "leader-node",
+		LastIncludedIndex: 10,
+		LastIncludedTerm:  2,
+		Data:              corruptedData,
+		Done:              true,
+	})
+
+	_ = reply
+
+	// Verify that commitIndex and lastApplied did NOT advance
+	st, err := node.GetStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.CommitIndex != 5 || st.LastApplied != 5 {
+		t.Fatalf("corrupted snapshot advanced indices! commitIndex=%d, lastApplied=%d (expected 5)", st.CommitIndex, st.LastApplied)
 	}
 }

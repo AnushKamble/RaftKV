@@ -58,6 +58,13 @@ func (c *Checker) Check(history []OperationRecord) CheckResult {
 	if len(history) == 0 {
 		return CheckResult{Outcome: OutcomePass}
 	}
+	if len(history) > 64 {
+		return CheckResult{
+			Outcome:        OutcomeInconclusive,
+			StepsExplored:  0,
+			Counterexample: fmt.Sprintf("history length %d exceeds max 64 operations for exact bitmask linearizability checker", len(history)),
+		}
+	}
 
 	// Sort operations by InvokeTime initially
 	ops := make([]OperationRecord, len(history))

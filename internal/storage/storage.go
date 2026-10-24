@@ -464,7 +464,30 @@ func (ds *DiskStorage) CompactLog(compactIndex protocol.Index, compactTerm proto
 		return err
 	}
 
-	// Write SnapshotMeta record
+	var seq uint64 = 1
+
+	// 1. Write HardState record to preserve currentTerm and votedFor across restart
+	hardStateBytes, err := json.Marshal(HardStateData{
+		Term:     ds.currentTerm,
+		VotedFor: ds.votedFor,
+	})
+	if err != nil {
+		_ = newWalFile.Close()
+		return err
+	}
+	hardStateFrame, err := EncodeRecord(RecordTypeHardState, seq, hardStateBytes)
+	if err != nil {
+		_ = newWalFile.Close()
+		return err
+	}
+	if _, err := newWalFile.Write(hardStateFrame); err != nil {
+		_ = newWalFile.Close()
+		return err
+	}
+
+	seq++
+
+	// 2. Write SnapshotMeta record
 	snapMetaBytes, err := json.Marshal(SnapshotMetaData{
 		LastIncludedIndex: compactIndex,
 		LastIncludedTerm:  compactTerm,
@@ -474,7 +497,6 @@ func (ds *DiskStorage) CompactLog(compactIndex protocol.Index, compactTerm proto
 		return err
 	}
 
-	var seq uint64 = 1
 	metaFrame, err := EncodeRecord(RecordTypeSnapshotMeta, seq, snapMetaBytes)
 	if err != nil {
 		_ = newWalFile.Close()

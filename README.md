@@ -173,6 +173,7 @@ Every protocol safety invariant is backed by dedicated, deterministic tests:
 | **Split-Vote Jitter** | Randomized timeout resolves split votes | `internal/raft/election_test.go` | `TestElection_SplitVoteResolution` | PASS |
 | **Log Freshness** | Candidate log compared by (term, then index) | `internal/raft/election_test.go` | `TestElection_CandidateLogFreshness` | PASS |
 | **Hard State Flush** | `currentTerm` & `votedFor` fsync'd before reply | `internal/raft/election_test.go` | `TestElection_VotePersistenceBeforeReply` | PASS |
+| **Quorum Step-Down** | Leader steps down if isolated from majority quorum | `internal/raft/election_test.go` | `TestElection_LeaderStepsDownOnQuorumLoss` | PASS |
 | **Log Matching** | Matching (index, term) guarantees identical prefix | `internal/raft/replication_test.go` | `TestReplication_BasicAppendEntries` | PASS |
 | **Conflict Repair** | Overwrite conflicting follower suffix | `internal/raft/replication_test.go` | `TestReplication_ConflictRepairAfterPartition` | PASS |
 | **Figure 8 Rule** | Current-term entry must commit before earlier entries | `internal/raft/replication_test.go` | `TestReplication_Figure8CurrentTermCommitConstraint` | PASS |
@@ -183,7 +184,9 @@ Every protocol safety invariant is backed by dedicated, deterministic tests:
 | **Mismatch Reject** | Reusing `request_id` with different payload fails | `internal/statemachine/kv_test.go` | `TestKV_DeduplicationConflict` | PASS |
 | **Crash & Failover** | Kill leader process; surviving majority elects | `tests/crash/crash_test.go` | `TestCrash_LeaderKillAndFailover` | PASS |
 | **Full Restart** | Stop all 3 nodes; verify committed state restored | `tests/crash/crash_test.go` | `TestCrash_FullClusterRestart` | PASS |
+| **Compacted Hard State** | Compaction preserves hard state (`currentTerm`, `votedFor`) | `internal/storage/storage_test.go` | `TestStorage_CompactionPreservesHardState` | PASS |
 | **Snapshot Catchup** | Send snapshot to follower behind compacted WAL | `tests/integration/snapshot_test.go` | `TestIntegration_InstallSnapshotLaggingFollower` | PASS |
+| **Corrupt Snapshot Reject** | Reject corrupted InstallSnapshot bytes without advancing indices | `internal/raft/replication_test.go` | `TestReplication_CorruptedInstallSnapshotRejected` | PASS |
 | **Linearizability** | Bounded history search verifies execution order | `tests/linearizability/cluster_lin_test.go` | `TestCluster_ConcurrentLinearizability` | PASS |
 | **Chaos Resilience** | Multi-round loss, delay, partitions across seeds | `tests/chaos/chaos_test.go` | `TestChaos_DeterministicFaultCampaign` | PASS |
 

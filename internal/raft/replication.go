@@ -167,7 +167,9 @@ func (r *Raft) handleAppendEntries(args *raftkvv1.AppendEntriesArgs) *raftkvv1.A
 						Command: cmd,
 					})
 				}
-				_ = r.storage.AppendEntries(toAppend)
+				if err := r.storage.AppendEntries(toAppend); err != nil {
+					return &raftkvv1.AppendEntriesReply{Term: uint64(r.currentTerm), Success: false}
+				}
 				break
 			}
 		} else {
@@ -181,7 +183,9 @@ func (r *Raft) handleAppendEntries(args *raftkvv1.AppendEntriesArgs) *raftkvv1.A
 					Command: cmd,
 				})
 			}
-			_ = r.storage.AppendEntries(toAppend)
+			if err := r.storage.AppendEntries(toAppend); err != nil {
+				return &raftkvv1.AppendEntriesReply{Term: uint64(r.currentTerm), Success: false}
+			}
 			break
 		}
 	}
@@ -213,6 +217,9 @@ func (r *Raft) handleAppendEntriesReply(e appendEntriesReplyEvent) {
 	if r.role != protocol.RoleLeader || e.term != r.currentTerm {
 		return
 	}
+
+	// Mark peer active for CheckQuorum (§6.2)
+	r.ackedPeers[e.from] = true
 
 	if e.success {
 		// Monotonic match index: ignore stale out-of-order replies
@@ -295,7 +302,11 @@ func (r *Raft) applyCommittedEntries() {
 		r.lastApplied++
 		entry, err := r.storage.Entry(r.lastApplied)
 		if err == nil && r.applyChan != nil {
-			r.applyChan <- entry
+			select {
+			case r.applyChan <- entry:
+			case <-r.stopCh:
+				return
+			}
 		}
 	}
 }
@@ -356,11 +367,19 @@ func (r *Raft) handleInstallSnapshot(args *raftkvv1.InstallSnapshotArgs) *raftkv
 		LastIncludedTerm:  snapTerm,
 		FormatVersion:     1,
 	}
-	_ = r.storage.SaveSnapshot(meta, args.Data)
-	_ = r.storage.CompactLog(snapIndex, snapTerm)
 
 	if r.stateMachine != nil {
-		_ = r.stateMachine.Restore(args.Data)
+		if err := r.stateMachine.Restore(args.Data); err != nil {
+			// Corrupt snapshot! Fail closed without advancing commitIndex or lastApplied
+			return &raftkvv1.InstallSnapshotReply{Term: uint64(r.currentTerm)}
+		}
+	}
+
+	if err := r.storage.SaveSnapshot(meta, args.Data); err != nil {
+		return &raftkvv1.InstallSnapshotReply{Term: uint64(r.currentTerm)}
+	}
+	if err := r.storage.CompactLog(snapIndex, snapTerm); err != nil {
+		return &raftkvv1.InstallSnapshotReply{Term: uint64(r.currentTerm)}
 	}
 
 	if snapIndex > r.commitIndex {
@@ -382,6 +401,9 @@ func (r *Raft) handleInstallSnapshotReply(e installSnapshotReplyEvent) {
 	if r.role != protocol.RoleLeader || e.term != r.currentTerm {
 		return
 	}
+
+	// Mark peer active for CheckQuorum (§6.2)
+	r.ackedPeers[e.from] = true
 
 	if e.lastIncludedIndex > r.matchIndex[e.from] {
 		r.matchIndex[e.from] = e.lastIncludedIndex
