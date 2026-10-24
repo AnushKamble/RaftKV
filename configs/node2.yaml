@@ -1,0 +1,9 @@
+id: "node-2"
+data_dir: "data/node2"
+address: "127.0.0.1:50052"
+min_election_timeout: "200ms"
+max_election_timeout: "400ms"
+heartbeat_interval: "50ms"
+peers:
+  node-1: "127.0.0.1:50051"
+  node-3: "127.0.0.1:50053"
