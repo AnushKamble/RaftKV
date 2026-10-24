@@ -47,7 +47,7 @@ func (r *Raft) sendAppendEntriesToPeer(peer protocol.NodeID) {
 	leaderCommit := r.commitIndex
 
 	go func(p protocol.NodeID, pIdx protocol.Index, pTerm protocol.Term) {
-		ctx, cancel := context.WithTimeout(context.Background(), r.heartbeatInterval)
+		ctx, cancel := context.WithTimeout(context.Background(), r.minElectionTimeout)
 		defer cancel()
 
 		args := &raftkvv1.AppendEntriesArgs{
