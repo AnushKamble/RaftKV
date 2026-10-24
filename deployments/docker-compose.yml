@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  node-1:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    container_name: raftkv-node-1
+    command: ["/app/raftkv-server", "--config", "/app/configs/node1.yaml"]
+    ports:
+      - "50051:50051"
+    volumes:
+      - node1_data:/app/data/node1
+    networks:
+      raftkv_net:
+        ipv4_address: 172.28.0.11
+
+  node-2:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    container_name: raftkv-node-2
+    command: ["/app/raftkv-server", "--config", "/app/configs/node2.yaml"]
+    ports:
+      - "50052:50052"
+    volumes:
+      - node2_data:/app/data/node2
+    networks:
+      raftkv_net:
+        ipv4_address: 172.28.0.12
+
+  node-3:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    container_name: raftkv-node-3
+    command: ["/app/raftkv-server", "--config", "/app/configs/node3.yaml"]
+    ports:
+      - "50053:50053"
+    volumes:
+      - node3_data:/app/data/node3
+    networks:
+      raftkv_net:
+        ipv4_address: 172.28.0.13
+
+networks:
+  raftkv_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  node1_data:
+  node2_data:
+  node3_data:

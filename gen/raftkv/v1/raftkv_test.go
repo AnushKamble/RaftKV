@@ -25,7 +25,7 @@ func TestProtobufRoundTrip(t *testing.T) {
 	}
 
 	if decoded.ClientId != req.ClientId || decoded.RequestId != req.RequestId || decoded.Key != req.Key || decoded.Value != req.Value {
-		t.Fatalf("decoded request does not match: got %+v, want %+v", decoded, req)
+		t.Fatalf("decoded request does not match: got %+v, want %+v", &decoded, req)
 	}
 }
 
