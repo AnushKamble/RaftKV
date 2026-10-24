@@ -1,0 +1,27 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test and runtime data directories
+data/
+*.wal
+*.snap
+*.lock
+tmp/
+scratch/
+
+# Go test cache / coverage / profiling
+*.out
+*.test
+*.prof
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
