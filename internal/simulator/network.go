@@ -71,11 +71,20 @@ func NewNetworkSimulator(seed int64, clock *VirtualClock, trace *TraceLogger) *N
 func (ns *NetworkSimulator) RegisterNode(nodeID string, handlers RPCHandlers) transport.Transport {
 	ns.mu.Lock()
 	defer ns.mu.Unlock()
-	ns.handlers[nodeID] = handlers
+	if handlers != nil {
+		ns.handlers[nodeID] = handlers
+	}
 	return &SimulatedNodeTransport{
 		nodeID: nodeID,
 		net:    ns,
 	}
+}
+
+// RegisterHandlers attaches or updates RPC handlers for a registered node.
+func (ns *NetworkSimulator) RegisterHandlers(nodeID string, handlers RPCHandlers) {
+	ns.mu.Lock()
+	defer ns.mu.Unlock()
+	ns.handlers[nodeID] = handlers
 }
 
 // SetFaults configures drop and duplication probabilities and delay boundaries.
