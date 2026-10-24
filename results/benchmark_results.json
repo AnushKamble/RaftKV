@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-10-24T09:59:44Z",
+  "go_version": "go1.27.0",
+  "os": "windows",
+  "architecture": "amd64",
+  "num_cpu": 32,
+  "results": [
+    {
+      "benchmark_name": "Single-Node In-Memory Baseline",
+      "total_ops": 10000,
+      "duration_ms": 15,
+      "throughput_ops_sec": 630147.5175338547,
+      "p50_latency_ms": 0,
+      "p95_latency_ms": 0,
+      "p99_latency_ms": 0,
+      "min_latency_ms": 0,
+      "max_latency_ms": 1.087,
+      "durability_mode": "None (in-memory)",
+      "transport": "Local memory"
+    },
+    {
+      "benchmark_name": "3-Node RaftKV Cluster (gRPC+WAL)",
+      "total_ops": 200,
+      "duration_ms": 261,
+      "throughput_ops_sec": 766.0000168520004,
+      "p50_latency_ms": 5.146,
+      "p95_latency_ms": 6.308,
+      "p99_latency_ms": 7.398,
+      "min_latency_ms": 3.249,
+      "max_latency_ms": 7.398,
+      "durability_mode": "Fsync-per-record",
+      "transport": "TCP loopback (gRPC)"
+    }
+  ]
+}
