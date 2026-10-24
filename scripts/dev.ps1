@@ -22,7 +22,7 @@ function Run-Generate {
     if (!(Test-Path "gen/raftkv/v1")) {
         New-Item -ItemType Directory -Force -Path "gen/raftkv/v1" | Out-Null
     }
-    protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative api/raftkv/v1/raftkv.proto
+    protoc --go_out=. --go_opt=module=raftkv --go-grpc_out=. --go-grpc_opt=module=raftkv api/raftkv/v1/raftkv.proto
     Write-Host "Generated api/raftkv/v1 Protobuf bindings successfully." -ForegroundColor Green
 }
 

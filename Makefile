@@ -9,7 +9,7 @@ vet:
 	go vet ./...
 
 generate:
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative api/raftkv/v1/raftkv.proto
+	protoc --go_out=. --go_opt=module=raftkv --go-grpc_out=. --go-grpc_opt=module=raftkv api/raftkv/v1/raftkv.proto
 
 test:
 	go test -v -count=1 ./...
