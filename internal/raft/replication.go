@@ -23,6 +23,13 @@ func (r *Raft) broadcastAppendEntries() {
 }
 
 func (r *Raft) sendAppendEntriesToPeer(peer protocol.NodeID) {
+	firstIdx, _ := r.storage.FirstIndex()
+	if r.nextIndex[string(peer)] < firstIdx {
+		// Follower is lagging behind compacted prefix: send snapshot!
+		r.sendInstallSnapshotToPeer(peer)
+		return
+	}
+
 	prevIdx := r.nextIndex[string(peer)] - 1
 	prevTerm, _ := r.storage.Term(prevIdx)
 	lastIdx, _, _ := r.storage.LastIndexAndTerm()
@@ -293,6 +300,41 @@ func (r *Raft) applyCommittedEntries() {
 	}
 }
 
+func (r *Raft) sendInstallSnapshotToPeer(peer protocol.NodeID) {
+	snapMeta, snapData, err := r.storage.LoadSnapshot()
+	if err != nil || snapMeta == nil || snapData == nil {
+		return
+	}
+
+	term := r.currentTerm
+	leaderID := string(r.id)
+
+	go func(p protocol.NodeID, meta *protocol.SnapshotMeta, data []byte) {
+		ctx, cancel := context.WithTimeout(context.Background(), r.minElectionTimeout)
+		defer cancel()
+
+		args := &raftkvv1.InstallSnapshotArgs{
+			Term:              uint64(term),
+			LeaderId:          leaderID,
+			LastIncludedIndex: uint64(meta.LastIncludedIndex),
+			LastIncludedTerm:  uint64(meta.LastIncludedTerm),
+			Data:              data,
+			Done:              true,
+		}
+
+		reply, err := r.transport.SendInstallSnapshot(ctx, string(p), args)
+		if err != nil {
+			return
+		}
+
+		r.PostEvent(installSnapshotReplyEvent{
+			from:              string(p),
+			term:              protocol.Term(reply.Term),
+			lastIncludedIndex: meta.LastIncludedIndex,
+		})
+	}(peer, snapMeta, snapData)
+}
+
 func (r *Raft) handleInstallSnapshot(args *raftkvv1.InstallSnapshotArgs) *raftkvv1.InstallSnapshotReply {
 	reqTerm := protocol.Term(args.Term)
 	if reqTerm < r.currentTerm {
@@ -301,13 +343,14 @@ func (r *Raft) handleInstallSnapshot(args *raftkvv1.InstallSnapshotArgs) *raftkv
 	if reqTerm > r.currentTerm {
 		r.becomeFollower(reqTerm, protocol.NodeID(args.LeaderId))
 	} else {
+		r.leaderID = protocol.NodeID(args.LeaderId)
 		r.resetElectionTimeout()
 	}
 
 	snapIndex := protocol.Index(args.LastIncludedIndex)
 	snapTerm := protocol.Term(args.LastIncludedTerm)
 
-	// Save snapshot to disk
+	// Save snapshot to disk and compact log
 	meta := protocol.SnapshotMeta{
 		LastIncludedIndex: snapIndex,
 		LastIncludedTerm:  snapTerm,
@@ -315,6 +358,10 @@ func (r *Raft) handleInstallSnapshot(args *raftkvv1.InstallSnapshotArgs) *raftkv
 	}
 	_ = r.storage.SaveSnapshot(meta, args.Data)
 	_ = r.storage.CompactLog(snapIndex, snapTerm)
+
+	if r.stateMachine != nil {
+		_ = r.stateMachine.Restore(args.Data)
+	}
 
 	if snapIndex > r.commitIndex {
 		r.commitIndex = snapIndex
@@ -329,6 +376,17 @@ func (r *Raft) handleInstallSnapshot(args *raftkvv1.InstallSnapshotArgs) *raftkv
 func (r *Raft) handleInstallSnapshotReply(e installSnapshotReplyEvent) {
 	if e.term > r.currentTerm {
 		r.becomeFollower(e.term, "")
+		return
+	}
+
+	if r.role != protocol.RoleLeader || e.term != r.currentTerm {
+		return
+	}
+
+	if e.lastIncludedIndex > r.matchIndex[e.from] {
+		r.matchIndex[e.from] = e.lastIncludedIndex
+		r.nextIndex[e.from] = e.lastIncludedIndex + 1
+		r.sendAppendEntriesToPeer(protocol.NodeID(e.from))
 	}
 }
 

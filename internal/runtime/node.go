@@ -65,6 +65,7 @@ func NewNode(cfg *config.ParsedNodeConfig) (*Node, error) {
 		Peers:              peerIDs,
 		Storage:            s,
 		Transport:          trans,
+		StateMachine:       sm,
 		MinElectionTimeout: cfg.MinElectionTimeout,
 		MaxElectionTimeout: cfg.MaxElectionTimeout,
 		HeartbeatInterval:  cfg.HeartbeatInterval,

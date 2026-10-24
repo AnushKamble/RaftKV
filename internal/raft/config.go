@@ -9,6 +9,13 @@ import (
 	"raftkv/internal/transport"
 )
 
+// StateMachine abstracts the replicated state machine for snapshots and application.
+type StateMachine interface {
+	Apply(entry protocol.LogEntry) protocol.CommandResult
+	Snapshot() ([]byte, error)
+	Restore(data []byte) error
+}
+
 // Config encapsulates configuration for a Raft node instance.
 type Config struct {
 	ID                  protocol.NodeID
@@ -16,6 +23,7 @@ type Config struct {
 	Storage             storage.Storage
 	Transport           transport.Transport
 	Clock               transport.Clock
+	StateMachine        StateMachine
 	MinElectionTimeout  time.Duration
 	MaxElectionTimeout  time.Duration
 	HeartbeatInterval   time.Duration

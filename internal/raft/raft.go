@@ -21,6 +21,7 @@ type Raft struct {
 	storage   storage.Storage
 	transport transport.Transport
 	clock     transport.Clock
+	stateMachine StateMachine
 
 	minElectionTimeout time.Duration
 	maxElectionTimeout time.Duration
@@ -73,6 +74,7 @@ func NewRaft(cfg Config) (*Raft, error) {
 		storage:            cfg.Storage,
 		transport:          cfg.Transport,
 		clock:              cfg.Clock,
+		stateMachine:       cfg.StateMachine,
 		minElectionTimeout: cfg.MinElectionTimeout,
 		maxElectionTimeout: cfg.MaxElectionTimeout,
 		heartbeatInterval:  cfg.HeartbeatInterval,
@@ -166,6 +168,12 @@ func (r *Raft) handleEvent(ev Event) {
 
 	case installSnapshotReplyEvent:
 		r.handleInstallSnapshotReply(e)
+
+	case snapshotRequestEvent:
+		select {
+		case e.replyCh <- r.handleSnapshotRequest(e.compactIndex):
+		default:
+		}
 
 	case clientCommandEvent:
 		r.handleClientCommand(e)
@@ -265,6 +273,53 @@ func (r *Raft) PostEvent(ev Event) {
 	case r.mailbox <- ev:
 	case <-r.stopCh:
 	}
+}
+
+// TakeSnapshot triggers state machine snapshot creation and WAL compaction up to compactIndex.
+func (r *Raft) TakeSnapshot(compactIndex protocol.Index) error {
+	replyCh := make(chan error, 1)
+	r.PostEvent(snapshotRequestEvent{compactIndex: compactIndex, replyCh: replyCh})
+	select {
+	case <-r.stopCh:
+		return ErrStopped
+	case err := <-replyCh:
+		return err
+	}
+}
+
+func (r *Raft) handleSnapshotRequest(compactIndex protocol.Index) error {
+	if compactIndex > r.lastApplied {
+		return fmt.Errorf("cannot snapshot beyond lastApplied: %d > %d", compactIndex, r.lastApplied)
+	}
+	if r.stateMachine == nil {
+		return fmt.Errorf("state machine not configured")
+	}
+
+	snapData, err := r.stateMachine.Snapshot()
+	if err != nil {
+		return fmt.Errorf("failed to take state machine snapshot: %w", err)
+	}
+
+	compactTerm, err := r.storage.Term(compactIndex)
+	if err != nil {
+		return fmt.Errorf("failed to get term for snapshot index %d: %w", compactIndex, err)
+	}
+
+	meta := protocol.SnapshotMeta{
+		LastIncludedIndex: compactIndex,
+		LastIncludedTerm:  compactTerm,
+		FormatVersion:     1,
+	}
+
+	if err := r.storage.SaveSnapshot(meta, snapData); err != nil {
+		return fmt.Errorf("failed to save snapshot: %w", err)
+	}
+
+	if err := r.storage.CompactLog(compactIndex, compactTerm); err != nil {
+		return fmt.Errorf("failed to compact log: %w", err)
+	}
+
+	return nil
 }
 
 // GetStatus returns the current status snapshot synchronously.

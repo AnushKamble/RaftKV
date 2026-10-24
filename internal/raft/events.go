@@ -58,12 +58,19 @@ type installSnapshotEvent struct {
 func (installSnapshotEvent) isEvent() {}
 
 type installSnapshotReplyEvent struct {
-	from    string
-	term    protocol.Term
-	success bool
+	from              string
+	term              protocol.Term
+	lastIncludedIndex protocol.Index
 }
 
 func (installSnapshotReplyEvent) isEvent() {}
+
+type snapshotRequestEvent struct {
+	compactIndex protocol.Index
+	replyCh      chan error
+}
+
+func (snapshotRequestEvent) isEvent() {}
 
 type clientCommandEvent struct {
 	cmd     protocol.Command
