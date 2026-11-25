@@ -1,9 +1,10 @@
-# RaftKV — Single-Shard Linearizable Key–Value Store with Raft Consensus
+﻿# RaftKV â€” Single-Shard Linearizable Keyâ€“Value Store with Raft Consensus
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/raftkv/raftkv)](https://github.com/raftkv/raftkv)
+[![CI](https://github.com/AnushKamble/RaftKV/actions/workflows/ci.yml/badge.svg)](https://github.com/AnushKamble/RaftKV/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/AnushKamble/RaftKV)](https://goreportcard.com/report/github.com/AnushKamble/RaftKV)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-RaftKV is an internship-grade, from-scratch distributed key–value store implemented in Go. It provides strict linearizable consistency (`Put`, `Get`, `Delete`, `CompareAndSwap`) across a 3-node cluster using custom Raft consensus, framed binary Write-Ahead Logging (WAL) with CRC32 checksums, atomic snapshot compaction, deterministic network simulation, and an automated history-based linearizability checker.
+RaftKV is an internship-grade, from-scratch distributed keyâ€“value store implemented in Go. It provides strict linearizable consistency (`Put`, `Get`, `Delete`, `CompareAndSwap`) across a 3-node cluster using custom Raft consensus, framed binary Write-Ahead Logging (WAL) with CRC32 checksums, atomic snapshot compaction, deterministic network simulation, and an automated history-based linearizability checker.
 
 ---
 
@@ -16,7 +17,7 @@ flowchart TD
     subgraph ClientLayer["Client & Tooling Layer"]
         CLI["CLI (raftkv-cli)"]
         Bench["Benchmark Harness (raftkv-bench)"]
-        ClientLib["Client Library (internal/client)<br/>• Exponential Backoff & Retry<br/>• NOT_LEADER Redirects<br/>• Idempotent RequestID"]
+        ClientLib["Client Library (internal/client)<br/>â€¢ Exponential Backoff & Retry<br/>â€¢ NOT_LEADER Redirects<br/>â€¢ Idempotent RequestID"]
     end
 
     subgraph NodeProcess["RaftKV Node Process (Node 1 / 2 / 3)"]
@@ -29,13 +30,13 @@ flowchart TD
 
         subgraph CoreEngine["Consensus & State Engine (Actor Loop)"]
             Mailbox["Event Mailbox (actorLoop)"]
-            RaftCore["Custom Raft Core<br/>• Role: Follower/Candidate/Leader<br/>• Election Timers & Jitter<br/>• AppendEntries Replication<br/>• Figure 8 Commit Constraint"]
-            StateMachine["In-Memory KV Engine<br/>• Put / Get / Delete / CAS<br/>• Deduplication Table (ClientID+ReqID)"]
+            RaftCore["Custom Raft Core<br/>â€¢ Role: Follower/Candidate/Leader<br/>â€¢ Election Timers & Jitter<br/>â€¢ AppendEntries Replication<br/>â€¢ Figure 8 Commit Constraint"]
+            StateMachine["In-Memory KV Engine<br/>â€¢ Put / Get / Delete / CAS<br/>â€¢ Deduplication Table (ClientID+ReqID)"]
         end
 
         subgraph StorageLayer["Durable Storage Engine (WAL & Snapshot)"]
-            WAL["Framed Binary WAL (raft.wal)<br/>• Length + Type + Version + Seq + CRC32<br/>• Torn-Tail Discard & Corruption Fail-Closed<br/>• Synchronous fsync()"]
-            Snap["Snapshot Engine (snapshot.snap)<br/>• Atomic temp write & rename<br/>• WAL Suffix Retaining Compaction"]
+            WAL["Framed Binary WAL (raft.wal)<br/>â€¢ Length + Type + Version + Seq + CRC32<br/>â€¢ Torn-Tail Discard & Corruption Fail-Closed<br/>â€¢ Synchronous fsync()"]
+            Snap["Snapshot Engine (snapshot.snap)<br/>â€¢ Atomic temp write & rename<br/>â€¢ WAL Suffix Retaining Compaction"]
             Flock["Directory Advisory Lock (node.lock)"]
         end
     end
@@ -203,7 +204,7 @@ Evaluated on AMD64 Windows 11 NVMe storage across 3 real gRPC node processes ove
 
 ### Bottleneck Breakdown
 - **In-Memory Speed**: Pure state machine throughput exceeds 630k ops/sec.
-- **Physical Disk Barrier**: Each committed command requires synchronous `fsync()` flushes on the leader and a quorum of followers before returning. On modern NVMe SSDs, an `fsync` call incurs 1.5ms–3.5ms of physical flush latency.
+- **Physical Disk Barrier**: Each committed command requires synchronous `fsync()` flushes on the leader and a quorum of followers before returning. On modern NVMe SSDs, an `fsync` call incurs 1.5msâ€“3.5ms of physical flush latency.
 - **Consensus Latency**: Observed p50 latency of 5.15ms corresponds directly to the theoretical minimum bounded by one round of gRPC network exchange plus physical NVMe write flushes.
 
 To reproduce benchmarks:
@@ -267,8 +268,8 @@ The Go race detector (`-race`) instruments memory accesses at runtime to detect 
 ### 15. What is your measured bottleneck, and how did you separate fsync time, RPC latency, and consensus overhead?
 By isolating components:
 - **State Machine Baseline**: Running the in-memory state machine in isolation yields **630,147 ops/sec** (< 0.01ms latency), proving that CPU processing and state machine execution consume negligible time.
-- **Local gRPC Round-Trip**: Empty ping-pong gRPC calls over TCP loopback take approximately **0.3ms–0.5ms**.
-- **Synchronous NVMe fsync**: Direct sequential file writes with per-record `Sync()` take **1.5ms–3.5ms** per call on the host NVMe SSD.
+- **Local gRPC Round-Trip**: Empty ping-pong gRPC calls over TCP loopback take approximately **0.3msâ€“0.5ms**.
+- **Synchronous NVMe fsync**: Direct sequential file writes with per-record `Sync()` take **1.5msâ€“3.5ms** per call on the host NVMe SSD.
 - **Combined Raft Pipeline**: A committed Raft write requires one leader fsync, one gRPC dispatch to peers, one follower fsync, and one gRPC reply before committing. The measured p50 latency of **5.15ms** precisely matches:
   $$\text{Latency} \approx \text{RPC RTT (0.5ms)} + \text{Parallel Disk Fsync (3.5ms)} + \text{Consensus & State Machine (1.0ms)}$$
 This proves conclusively that physical NVMe fsync disk latency is the dominant throughput and latency bottleneck.
