@@ -171,8 +171,8 @@ func (c *Checker) Check(history []OperationRecord) CheckResult {
 
 	if steps > c.MaxSearchSteps {
 		return CheckResult{
-			Outcome:       OutcomeInconclusive,
-			StepsExplored: steps,
+			Outcome:        OutcomeInconclusive,
+			StepsExplored:  steps,
 			Counterexample: fmt.Sprintf("search bound exceeded (%d steps) without finding valid order", steps),
 		}
 	}

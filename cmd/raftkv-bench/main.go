@@ -21,26 +21,26 @@ import (
 )
 
 type BenchmarkMetric struct {
-	Name            string        `json:"benchmark_name"`
-	TotalOps        int           `json:"total_ops"`
-	DurationMs      float64       `json:"duration_ms"`
-	ThroughputOpsSec float64      `json:"throughput_ops_sec"`
-	P50LatencyMs    float64       `json:"p50_latency_ms"`
-	P95LatencyMs    float64       `json:"p95_latency_ms"`
-	P99LatencyMs    float64       `json:"p99_latency_ms"`
-	MinLatencyMs    float64       `json:"min_latency_ms"`
-	MaxLatencyMs    float64       `json:"max_latency_ms"`
-	DurabilityMode  string        `json:"durability_mode"`
-	Transport       string        `json:"transport"`
+	Name             string  `json:"benchmark_name"`
+	TotalOps         int     `json:"total_ops"`
+	DurationMs       float64 `json:"duration_ms"`
+	ThroughputOpsSec float64 `json:"throughput_ops_sec"`
+	P50LatencyMs     float64 `json:"p50_latency_ms"`
+	P95LatencyMs     float64 `json:"p95_latency_ms"`
+	P99LatencyMs     float64 `json:"p99_latency_ms"`
+	MinLatencyMs     float64 `json:"min_latency_ms"`
+	MaxLatencyMs     float64 `json:"max_latency_ms"`
+	DurabilityMode   string  `json:"durability_mode"`
+	Transport        string  `json:"transport"`
 }
 
 type BenchmarkReport struct {
-	Timestamp      string            `json:"timestamp"`
-	GoVersion      string            `json:"go_version"`
-	OS             string            `json:"os"`
-	Architecture   string            `json:"architecture"`
-	NumCPU         int               `json:"num_cpu"`
-	Results        []BenchmarkMetric `json:"results"`
+	Timestamp    string            `json:"timestamp"`
+	GoVersion    string            `json:"go_version"`
+	OS           string            `json:"os"`
+	Architecture string            `json:"architecture"`
+	NumCPU       int               `json:"num_cpu"`
+	Results      []BenchmarkMetric `json:"results"`
 }
 
 func main() {
@@ -237,17 +237,17 @@ func computeMetrics(name string, totalOps int, duration time.Duration, latencies
 	throughput := float64(totalOps) / duration.Seconds()
 
 	return BenchmarkMetric{
-		Name:            name,
-		TotalOps:        totalOps,
-		DurationMs:      float64(duration.Milliseconds()),
+		Name:             name,
+		TotalOps:         totalOps,
+		DurationMs:       float64(duration.Milliseconds()),
 		ThroughputOpsSec: throughput,
-		P50LatencyMs:    p50,
-		P95LatencyMs:    p95,
-		P99LatencyMs:    p99,
-		MinLatencyMs:    latencies[0],
-		MaxLatencyMs:    latencies[len(latencies)-1],
-		DurabilityMode:  durability,
-		Transport:       transport,
+		P50LatencyMs:     p50,
+		P95LatencyMs:     p95,
+		P99LatencyMs:     p99,
+		MinLatencyMs:     latencies[0],
+		MaxLatencyMs:     latencies[len(latencies)-1],
+		DurabilityMode:   durability,
+		Transport:        transport,
 	}
 }
 

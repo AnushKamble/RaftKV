@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	raftkvv1 "raftkv/gen/raftkv/v1"
 	"raftkv/internal/client"
 	"raftkv/internal/config"
-	raftkvv1 "raftkv/gen/raftkv/v1"
 )
 
 type NodeProcess struct {

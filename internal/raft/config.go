@@ -18,16 +18,16 @@ type StateMachine interface {
 
 // Config encapsulates configuration for a Raft node instance.
 type Config struct {
-	ID                  protocol.NodeID
-	Peers               []protocol.NodeID
-	Storage             storage.Storage
-	Transport           transport.Transport
-	Clock               transport.Clock
-	StateMachine        StateMachine
-	MinElectionTimeout  time.Duration
-	MaxElectionTimeout  time.Duration
-	HeartbeatInterval   time.Duration
-	ApplyChan           chan protocol.LogEntry
+	ID                 protocol.NodeID
+	Peers              []protocol.NodeID
+	Storage            storage.Storage
+	Transport          transport.Transport
+	Clock              transport.Clock
+	StateMachine       StateMachine
+	MinElectionTimeout time.Duration
+	MaxElectionTimeout time.Duration
+	HeartbeatInterval  time.Duration
+	ApplyChan          chan protocol.LogEntry
 }
 
 // Validate ensures all required configuration options are provided.

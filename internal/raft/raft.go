@@ -15,12 +15,12 @@ import (
 
 // Raft implements the core Raft consensus protocol using a single-owner event loop.
 type Raft struct {
-	mu        sync.Mutex // only for external status queries if needed, state loop owns mutable state
-	id        protocol.NodeID
-	peers     []protocol.NodeID
-	storage   storage.Storage
-	transport transport.Transport
-	clock     transport.Clock
+	mu           sync.Mutex // only for external status queries if needed, state loop owns mutable state
+	id           protocol.NodeID
+	peers        []protocol.NodeID
+	storage      storage.Storage
+	transport    transport.Transport
+	clock        transport.Clock
 	stateMachine StateMachine
 
 	minElectionTimeout time.Duration
