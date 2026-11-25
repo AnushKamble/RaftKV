@@ -10,18 +10,18 @@ flowchart TB
         APIHandler[gRPC API Handlers] -->|Enqueue Event| Mailbox[Typed Event Mailbox]
         TimerSource[Clock / Timer Provider] -->|Ticks| Mailbox
         NetTransport[Peer Transport Adapter] -->|Inbound RPCs| Mailbox
-        
+
         Mailbox --> CoreLoop[Single-Owner Raft Actor Event Loop]
-        
+
         CoreLoop -->|Sync Flush| WALStore[Durable WAL & Storage Engine]
         CoreLoop -->|Trigger Apply| Applier[Committed Command Applier]
         Applier --> KVStore[Replicated KV State Machine & Dedupe Table]
         Applier -->|Resolve Result Channel| APIHandler
-        
+
         CoreLoop -->|Async Dispatch| OutboundWorkers[Outbound RPC Goroutines]
         OutboundWorkers -->|Peer RPCs| NetTransport
     end
-    
+
     NetTransport <--->|gRPC / Simulated Links| PeerNodes[Peer Raft Nodes]
 ```
 
